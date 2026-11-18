@@ -1,0 +1,14 @@
+name: RemoteRagdoll-BetterModel
+version: '${version}'
+main: kr.gcb.ragdoll.BetterModelRagdoll
+api-version: '26.3'
+softdepend: [BetterModel]
+description: Player-skinned Jolt ragdoll corpses drawn with BetterModel skin slices
+commands:
+  ragdoll:
+    description: Drops a ragdoll of a player in front of you or at a spot, or clears every ragdoll
+    usage: /ragdoll [player] | at <x> <y> <z> [world] | clear
+    permission: remoteragdoll.command
+permissions:
+  remoteragdoll.command:
+    default: op

@@ -1,0 +1,21 @@
+# RemoteRagdoll-BetterModel
+
+# Leave a ragdoll when a player dies.
+on-death: true
+# How long a corpse lies there, in seconds.
+lifetime-seconds: 120
+# Hide the vanilla dying player from everyone else (the corpse is lying in the same place).
+hide-dying-player: true
+# Swinging at a corpse kicks it (0 turns kicking off). Walking through one always pushes it.
+kick-strength: 1.0
+
+# Read by the ragdoll code itself (kr.gcb.dungeon.model).
+corpse:
+  # Prise the seams inside each limb apart by this many skin pixels.
+  seam-pixels: 0.0
+  # How far each inset layer pulls a piece in, in percent of the limb's own width.
+  side-inset-percent: 0.1
+  # Turn of an item held in a corpse's hand, in degrees.
+  hand-yaw: -90
+  hand-pitch: 0
+  hand-roll: 0

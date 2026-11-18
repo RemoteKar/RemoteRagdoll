@@ -1,0 +1,7 @@
+name: RemoteRagdoll
+version: '${version}'
+main: org.EIQUI.RemoteRagdoll.main
+api-version: '26.3'
+depend: [GCBAPI, ModelEngine, packetevents]
+softdepend: [Skript]
+description: RemoteRagdoll - Jolt physics and ModelEngine ragdolls for GCB

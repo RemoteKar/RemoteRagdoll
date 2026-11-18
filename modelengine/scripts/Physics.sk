@@ -1,0 +1,315 @@
+import:
+	org.EIQUI.RemoteRagdoll.JoltNatives
+	org.EIQUI.RemoteRagdoll.PhysicsWorld
+	org.EIQUI.RemoteRagdoll.PhysicsBody
+	# Ragdoll 은 그냥 쓰면 Skript 쪽 타입으로 먼저 해석돼서 CraftType#spawn 을 찾으려 든다.
+	# (No matching non-static method: CraftType#spawn ...) 별칭을 줘서 충돌을 피한다.
+	org.EIQUI.RemoteRagdoll.Ragdoll as JoltRagdoll
+	org.bukkit.util.Vector
+	org.EIQUI.RemoteRagdoll.Liquid as JoltLiquid
+
+# =====================================================================
+# Jolt 물리 엔진 래퍼.
+#
+# 강체는 전역 티커 1개가 돌린다(월드별 PhysicsSystem). 정지한 물체는 Jolt 가 자동으로
+# sleep 시키므로 쌓여 있어도 비용이 없다.
+#
+# 지형은 물리 객체 주변 2블록만 정적 충돌체로 올라간다. 월드 전체를 올리지 않는다.
+#
+# 네이티브(dll/so)는 GCBAPI jar 안에 Windows/Linux 둘 다 들어있고 런타임에 추출된다.
+# 로드 실패해도 서버는 그대로 돌고 물리 기능만 꺼진다. Physics_isAvailable() 로 확인할 것.
+# =====================================================================
+
+function Physics_isAvailable() :: boolean:
+	return JoltNatives.isAvailable()
+
+#----------------------------------------------------------------------
+# 범용 물리 객체
+#----------------------------------------------------------------------
+
+# Display 엔티티에 물리를 부여한다.
+#   half   : 충돌 상자 반쪽 크기(블록). 0.5 면 한 블록짜리.
+#   mass   : 질량
+#   life   : 이 틱 뒤 자동 소멸. 0 이하면 무제한
+# 반환: PhysicsBody 객체 (실패 시 <none>)
+function Physics_attach(d:entity,half:vector,mass:number,life:integer) :: object:
+	return PhysicsBody.create(({_d}'s location),{_d},{_half},{_mass},{_life})
+
+# 보이지 않는 순수 충돌체
+function Physics_box(l:location,half:vector,mass:number,life:integer) :: object:
+	return PhysicsBody.create({_l},{_null},{_half},{_mass},{_life})
+
+function Physics_setVelocity(b:object,v:vector):
+	{_b}.setVelocity({_v})
+
+function Physics_setAngularVelocity(b:object,v:vector):
+	{_b}.setAngularVelocity({_v})
+
+function Physics_impulse(b:object,v:vector):
+	{_b}.addImpulse({_v})
+
+function Physics_torque(b:object,v:vector):
+	{_b}.addTorque({_v})
+
+function Physics_getVelocity(b:object) :: vector:
+	return {_b}.getVelocity()
+
+# 물리 객체의 현재 위치. 사라졌으면 <none>.
+function Physics_getLocation(b:object) :: location:
+	return {_b}.getLocation()
+
+function Physics_isActive(b:object) :: boolean:
+	return {_b}.isActive()
+
+function Physics_remove(b:object):
+	{_b}.destroy()
+
+# 물리만 떼고 Display 는 남긴다
+function Physics_detach(b:object):
+	{_b}.detach()
+
+#----------------------------------------------------------------------
+# 액체
+#
+# Jolt 는 강체 엔진이라 진짜 유체(SPH)는 없다. SoftBody 가 있지만 그건 천/젤리용이다.
+# 그래서 작은 구체 방울을 여럿 뿌리고 그 자리에 파티클을 그려 액체처럼 보이게 한다.
+#
+# 실제 처리는 Java(Liquid.java)가 물리 틱에서 한다. 예전엔 여기서 매 틱 방울 위치를
+# 읽어 그렸는데, 방울 수만큼 JNI 를 왕복해야 해서 수십 개만 돼도 비용이 눈에 띄었다.
+#----------------------------------------------------------------------
+
+# 액체를 뿌린다. 이 함수는 <b>대기하지 않는다</b>. 던져놓으면 알아서 유지되다 사라진다.
+#   count : 방울 수 (상한 400)
+#   power : 처음 튀는 세기. 0 이면 그 자리에서 흘러내린다.
+#   up    : 위로 솟는 정도 (0~1)
+#   life  : 유지 틱
+#   block : 파티클로 쓸 블록 이름 (예: "REDSTONE_BLOCK")
+function Physics_liquid(l:location,count:integer,power:number,up:number,life:integer,block:text) :: object:
+	return JoltLiquid.spawn({_l},{_count},{_power},{_up},{_life},{_block})
+
+function Physics_liquidRemove(q:object):
+	{_q}.destroy()
+
+function Physics_liquidSize(q:object) :: integer:
+	return {_q}.size()
+
+# 방울 감촉 조절. 재빌드 없이 바꿀 수 있게 열어둔다.
+#   radius : 방울 크기. 작을수록 물, 크면 걸쭉하다.
+#   fric   : 마찰. 낮아야 잘 흘러내린다.
+#   rest   : 반발. 높으면 튄다.
+#   damp   : 공기저항. 낮으면 끝없이 굴러다닌다.
+function Physics_liquidTune(radius:number,fric:number,rest:number,damp:number):
+	set JoltLiquid.RADIUS to {_radius}
+	set JoltLiquid.FRICTION to {_fric}
+	set JoltLiquid.RESTITUTION to {_rest}
+	set JoltLiquid.DAMPING to {_damp}
+
+function Physics_liquidGetTune() :: text:
+	return "radius %JoltLiquid.RADIUS% / friction %JoltLiquid.FRICTION% / restitution %JoltLiquid.RESTITUTION% / damping %JoltLiquid.DAMPING%"
+
+#----------------------------------------------------------------------
+# 래그돌
+#----------------------------------------------------------------------
+
+# 지금 포즈 그대로 래그돌 생성. 원본 모델은 그대로 남으니 부르는 쪽에서 숨기거나 지울 것.
+#   mid     : ModelEngine 모델 ID (보통 "player")
+#   impulse : 생성 직후 몸통에 줄 충격. 사망 방향으로 날리고 싶을 때
+#   life    : 이 틱 뒤 자동 소멸
+function Ragdoll_spawn(e:entity,mid:text,impulse:vector,life:integer) :: object:
+	return JoltRagdoll.spawn({_e},{_mid},{_impulse},{_life})
+
+function Ragdoll_push(r:object,v:vector):
+	{_r}.push({_v})
+
+function Ragdoll_remove(r:object):
+	{_r}.destroy()
+
+# 모든 파츠를 그 자리에 굳힌다. 중력도 관절도 안 먹는다. (정렬 확인용)
+function Ragdoll_freeze(r:object):
+	{_r}.freeze()
+
+function Ragdoll_size(r:object) :: integer:
+	return {_r}.size()
+
+# 마지막으로 만든 래그돌. 명령끼리 참조를 넘길 때 쓴다.
+function Ragdoll_last() :: object:
+	return JoltRagdoll.LAST
+
+# 부위를 몸통에서 잘라낸다. 관절만 끊는 거라 파츠는 그대로 남아 굴러간다.
+#   bone  : head / right_arm / left_arm / right_leg / left_leg
+#   power : 잘리면서 튀어나가는 세기. 0 이면 그냥 떨어진다.
+function Ragdoll_cut(r:object,bone:text,power:number) :: boolean:
+	return {_r}.dismember({_bone},{_power})
+
+# 상하체가 갈렸을 때 두 다리를 묶는 관절의 한계(도).
+# 0 에 가까울수록 통짜로 굳고, 크면 다리끼리 벌어진다.
+function Ragdoll_setWaist(cone:number,plane:number,twist:number):
+	set JoltRagdoll.WAIST_CONE to {_cone}
+	set JoltRagdoll.WAIST_PLANE to {_plane}
+	set JoltRagdoll.WAIST_TWIST to {_twist}
+
+function Ragdoll_getWaist() :: text:
+	return "cone %JoltRagdoll.WAIST_CONE% / plane %JoltRagdoll.WAIST_PLANE% / twist %JoltRagdoll.WAIST_TWIST%"
+
+# 허리에서 상하체를 가른다. 두 다리는 고정 조인트로 붙여 한 덩어리로 남는다.
+function Ragdoll_splitWaist(r:object,power:number) :: boolean:
+	return {_r}.splitAtWaist({_power})
+
+# 몸통 빼고 전부 잘라낸다. 반환값은 잘린 개수.
+function Ragdoll_cutAll(r:object,power:number) :: integer:
+	return {_r}.dismemberAll({_power})
+
+# 아직 몸통에 붙어있는 부위 목록
+function Ragdoll_parts(r:object) :: texts:
+	return Collection_toSkript({_r}.getAttachedParts())
+
+# 래그돌 파츠끼리 부딪히게 할지. 켜도 관절로 이어진 쌍(목/어깨/고관절)은 계속 안 부딪힌다.
+# 그 쌍은 상자가 설계상 겹쳐 있어서 충돌시키면 솔버가 밀어내느라 래그돌이 떤다.
+function Ragdoll_setSelfCollision(b:boolean):
+	set PhysicsWorld.RAGDOLL_SELF_COLLISION to {_b}
+
+function Ragdoll_getSelfCollision() :: boolean:
+	return PhysicsWorld.RAGDOLL_SELF_COLLISION
+
+# 주변 사람을 충돌체로 올릴지. 켜면 시체를 발로 차서 굴릴 수 있다.
+# 물리 객체 근처 엔티티마다 Kinematic 바디가 하나 생겨 매 틱 따라 움직이므로
+# 사람도 시체도 많은 난전에서는 여기가 비용이 붙는 자리다.
+function Ragdoll_setEntityCollision(b:boolean):
+	set PhysicsWorld.ENTITY_COLLISION to {_b}
+
+function Ragdoll_getEntityCollision() :: boolean:
+	return PhysicsWorld.ENTITY_COLLISION
+
+# 몸통에 코스튬을 붙인다. (ModelEngine 본이 없어서 본을 뗄 수 없는 것)
+# 코스튬은 모자가 아니라 등 장식 계열이라 머리가 아니라 몸통을 따라가야 한다.
+function Ragdoll_attachCostume(r:object,i:item):
+	{_r}.attachCostume({_i})
+
+# 파티클을 뿌릴 자리들. 잘린 관절마다 양쪽(떨어진 파츠 + 몸통 쪽)을 준다.
+# 아무것도 안 잘렸으면 가슴 한 곳.
+function Ragdoll_wounds(r:object) :: locations:
+	return Collection_toSkript({_r}.getWoundLocations())
+
+# 래그돌 몸통(가슴) 현재 위치. 사라졌으면 <none>.
+function Ragdoll_chestLocation(r:object) :: location:
+	return {_r}.getChestLocation()
+
+# 렌더 변형 조합 A~F 를 앞에 일렬로 세운다. 어느 게 몸통 모양인지 눈으로 고르는 용도.
+function Ragdoll_limbTest(e:entity,mid:text) :: integer:
+	return JoltRagdoll.limbTest({_e},{_mid})
+
+# 물리 없이 파츠만 제자리에 떼어놓는다. 렌더 문제 / 물리 문제를 가르는 용도.
+function Ragdoll_detachOnly(e:entity,mid:text) :: integer:
+	return JoltRagdoll.detachOnly({_e},{_mid})
+
+# 관절 한계(도) 조절. part = head / arm / leg
+function Ragdoll_setJoint(part:text,cone:number,plane:number,twist:number):
+	if {_part} is "head":
+		set JoltRagdoll.HEAD_CONE to {_cone}
+		set JoltRagdoll.HEAD_PLANE to {_plane}
+		set JoltRagdoll.HEAD_TWIST to {_twist}
+	else if {_part} is "arm":
+		set JoltRagdoll.ARM_CONE to {_cone}
+		set JoltRagdoll.ARM_PLANE to {_plane}
+		set JoltRagdoll.ARM_TWIST to {_twist}
+	else if {_part} is "leg":
+		set JoltRagdoll.LEG_CONE to {_cone}
+		set JoltRagdoll.LEG_PLANE to {_plane}
+		set JoltRagdoll.LEG_TWIST to {_twist}
+
+function Ragdoll_getJoints() :: text:
+	return "head %JoltRagdoll.HEAD_CONE%/%JoltRagdoll.HEAD_PLANE%/%JoltRagdoll.HEAD_TWIST%  arm %JoltRagdoll.ARM_CONE%/%JoltRagdoll.ARM_PLANE%/%JoltRagdoll.ARM_TWIST%  leg %JoltRagdoll.LEG_CONE%/%JoltRagdoll.LEG_PLANE%/%JoltRagdoll.LEG_TWIST%"
+
+# 장비(무기/모자) 크기·위치 미세조정.
+function Ragdoll_setAttach(scale:number,x:number,y:number,z:number):
+	set JoltRagdoll.ATTACH_SCALE to {_scale}
+	set JoltRagdoll.ATTACH_X to {_x}
+	set JoltRagdoll.ATTACH_Y to {_y}
+	set JoltRagdoll.ATTACH_Z to {_z}
+
+# 왼손 장비 좌우 보정. player.bbmodel 의 il_lefthand 가 오른손 자리에 있어서 기본은 켜둔다.
+function Ragdoll_setMirrorLeftHand(b:boolean):
+	set JoltRagdoll.MIRROR_LEFT_HAND to {_b}
+
+function Ragdoll_getMirrorLeftHand() :: boolean:
+	return JoltRagdoll.MIRROR_LEFT_HAND
+
+function Ragdoll_getAttach() :: text:
+	return "scale %JoltRagdoll.ATTACH_SCALE%  offset (%JoltRagdoll.ATTACH_X%, %JoltRagdoll.ATTACH_Y%, %JoltRagdoll.ATTACH_Z%)"
+
+# 코스튬 크기·위치 미세조정.
+# 기본 위치는 helmet 본(머리 큐브 중심)이고 여기 값은 거기서 더 밀어주는 양이다.
+function Ragdoll_setCostume(scale:number,x:number,y:number,z:number):
+	set JoltRagdoll.COSTUME_SCALE to {_scale}
+	set JoltRagdoll.COSTUME_X to {_x}
+	set JoltRagdoll.COSTUME_Y to {_y}
+	set JoltRagdoll.COSTUME_Z to {_z}
+
+function Ragdoll_getCostume() :: text:
+	return "scale %JoltRagdoll.COSTUME_SCALE%  offset (%JoltRagdoll.COSTUME_X%, %JoltRagdoll.COSTUME_Y%, %JoltRagdoll.COSTUME_Z%)"
+
+# 래그돌이 바라보는 방향 보정(도).
+# DisplayBone 의 회전이 이미 월드 회전이라 기본값은 0 이다. 틀어져 보이면 여기서 돌린다.
+function Ragdoll_setYaw(v:number):
+	set JoltRagdoll.YAW_OFFSET to {_v}
+
+function Ragdoll_getYaw() :: number:
+	return JoltRagdoll.YAW_OFFSET
+
+# 팔 벌림 / 어깨 높이 미세조정. 눈으로 맞추는 값이라 재빌드 없이 바꾼다.
+function Ragdoll_setArmSpread(v:number):
+	set JoltRagdoll.ARM_SPREAD to {_v}
+
+function Ragdoll_setArmY(v:number):
+	set JoltRagdoll.ARM_Y to {_v}
+
+function Ragdoll_getArmSpread() :: number:
+	return JoltRagdoll.ARM_SPREAD
+
+function Ragdoll_getArmY() :: number:
+	return JoltRagdoll.ARM_Y
+
+#----------------------------------------------------------------------
+# 정리
+#----------------------------------------------------------------------
+
+# 해당 월드의 모든 물리 객체 제거
+function Physics_clear(w:world):
+	set {_pw} to PhysicsWorld.get({_w})
+	if {_pw} is set:
+		{_pw}.clear()
+
+# 전 월드 정리. 게임 종료 시 호출.
+function Physics_clearAll():
+	PhysicsWorld.clearAll()
+
+# 지형 충돌체 수. 물체가 바닥을 뚫으면 이게 0 인지부터 본다.
+function Physics_getTerrainCount(w:world) :: integer:
+	set {_pw} to PhysicsWorld.get({_w})
+	if {_pw} is not set:
+		return 0
+	return {_pw}.getTerrainCount()
+
+# 켜면 20틱마다 추적 상태를 콘솔에 찍는다.
+function Physics_setDebug(b:boolean):
+	set PhysicsWorld.DEBUG to {_b}
+
+# 켜면 파츠를 떼어낼 때 본의 렌더 변환(위치/좌우 회전/배율/디스플레이 모드)을 콘솔에 찍는다.
+function Ragdoll_setDebugItems(b:boolean):
+	set JoltRagdoll.DEBUG_ITEMS to {_b}
+
+function Physics_getCount(w:world) :: integer:
+	set {_pw} to PhysicsWorld.get({_w})
+	if {_pw} is not set:
+		return 0
+	return {_pw}.getTrackedCount()
+
+on skript stop:
+	PhysicsWorld.clearAll()
+
+# 새로 생성하는 래그돌의 패킷 렌더 사용 여부.
+function Ragdoll_setPacketRender(b:boolean):
+	set JoltRagdoll.PACKET_RENDER to {_b}
+
+function Ragdoll_getPacketRender() :: boolean:
+	return JoltRagdoll.PACKET_RENDER
