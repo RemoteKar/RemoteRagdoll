@@ -58,7 +58,7 @@ public final class Puppets {
      * real display and everything keeps working without it.
      */
     public static Puppet limb(Location at, ItemStack item, Vector3f scale) {
-        return limb(at, item, scale, false);
+        return limb(at, item, scale, (kr.toxicity.model.api.platform.PlatformItemTransform) null);
     }
 
     /**
@@ -71,6 +71,17 @@ public final class Puppets {
      * worth having again over the transform.
      */
     public static Puppet limb(Location at, ItemStack item, Vector3f scale, boolean held) {
+        return limb(at, item, scale, held
+                ? kr.toxicity.model.api.platform.PlatformItemTransform.THIRDPERSON_RIGHTHAND : null);
+    }
+
+    /**
+     * The same, shown the way an item display shows things in that context (in a hand, on a
+     * head ...); null is no transform at all. Lets a hat and a held weapon be packets too
+     * rather than real displays (as in the Fabric port).
+     */
+    public static Puppet limb(Location at, ItemStack item, Vector3f scale,
+                              kr.toxicity.model.api.platform.PlatformItemTransform held) {
         if (!Corpses.available()) return null;
         try {
             return new Packet(at, item, scale, held);
@@ -222,15 +233,13 @@ public final class Puppets {
         private int quiet = java.util.concurrent.ThreadLocalRandom.current()
                 .nextInt(REFRESH);
 
-        Packet(Location where, ItemStack item, Vector3f scale, boolean held) {
+        Packet(Location where, ItemStack item, Vector3f scale,
+               kr.toxicity.model.api.platform.PlatformItemTransform held) {
             this.at = where.clone();
             var platform = new kr.toxicity.model.api.bukkit.platform.BukkitLocation(where);
             this.display = kr.toxicity.model.api.BetterModel.nms().create(platform, d -> {
                 d.item(new kr.toxicity.model.api.bukkit.platform.BukkitItemStack(item));
-                if (held) {
-                    d.display(kr.toxicity.model.api.platform.PlatformItemTransform
-                            .THIRDPERSON_RIGHTHAND);
-                }
+                if (held != null) d.display(held);
                 d.brightness(15, 15);
                 d.viewRange((float) (RANGE / 16.0));
                 d.moveDuration(1);          // glide between ticks rather than lurching

@@ -1046,9 +1046,7 @@ public final class PhysicsWorld {
             } catch (Throwable broken) {
                 if (!stepReported) {
                     stepReported = true;
-                    org.bukkit.Bukkit.getLogger().warning(
-                            "[Gazadry] physics step failed: " + broken);
-                    broken.printStackTrace();
+                    plugin.getLogger().log(java.util.logging.Level.WARNING, "physics step failed", broken);
                 }
                 b.kill();
             }

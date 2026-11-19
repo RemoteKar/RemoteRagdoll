@@ -70,16 +70,37 @@ Shoves.barge(physics, player, travel);  // 움직일 때 (이번 틱 이동량)
 ./gradlew build   # JAVA_HOME = JDK 25
 ```
 
-Paper API 와 BetterModel API(`io.github.toxicity188:bettermodel-bukkit-api:3.5.1`)는 compileOnly, jolt-jni(Windows64·Linux64
-네이티브 포함)는 jar 에 들어간다.
+Paper API 와 BetterModel API(`io.github.toxicity188:bettermodel-bukkit-api:3.5.1`)는 compileOnly, jolt-jni 는 jar 에 들어간다.
+
+## Jolt 네이티브
+
+jolt-jni 1.0.0 (`ReleaseSp`) 네이티브 8종이 jar 에 들어 있고, 첫 실행 때 OS/아키텍처에 맞는 것 하나만
+`plugins/RemoteRagdoll-BetterModel/natives/` 로 풀린다(파일 이름에 플랫폼이 붙는다).
+
+| OS | 아키텍처 | 아티팩트 |
+|---|---|---|
+| Linux | x64 / x64+FMA / ARM64 / ARM32hf | `Linux64`, `Linux64_fma`, `Linux_ARM64`, `Linux_ARM32hf` |
+| macOS | x64 / ARM64 | `MacOSX64`, `MacOSX_ARM64` |
+| Windows | x64 / x64+AVX2 | `Windows64`, `Windows64_avx2` |
+
+기본은 호환성이 넓은 기본판이다. `-Dremoteragdoll.jolt.variant=avx2`(Windows) 또는 `fma`(Linux)로 빠른 판을 고를 수 있다.
+Windows ARM64 는 jolt-jni 가 내지 않아 없다.
 
 ## 원본과 바꾼 것
 
-래그돌 코드(`kr.gcb.dungeon.model`, `kr.gcb.dungeon.physics`)는 Graywater(2026-11-16)의 것을 그대로 옮겼다. 바꾼 곳은 둘이다.
+래그돌 코드(`kr.gcb.dungeon.model`, `kr.gcb.dungeon.physics`)는 Graywater(2026-11-16)의 것을 옮겼다. 바꾼 곳은 다음과 같다.
 
 - `Ragdoll.itemFor`: Gazadry 의 BetterModel 포크에만 있는 `SkinData.rightBreast/leftBreast` 두 줄을 뺐다. 이 판에서는
   그 부위를 그리는 코드(`bust`)가 아무것도 하지 않으므로 동작은 같다.
 - `EntityPuppet.blind`: 플러그인을 이름(`"Gazadry"`)으로 찾던 것을 이 클래스를 실은 플러그인으로 바꿨다.
+
+[Fabric 판](https://github.com/biryeongtrain/RemoteRagdoll-fabric/tree/codex/fabric-port/fabric)에서 가져온 것:
+
+- `JoltNatives`: macOS·Linux ARM 네이티브와 AVX2/FMA 판 선택, 플랫폼별 파일 이름.
+- `Ragdoll.don/hang`: 모자와 손에 든 아이템도 실제 디스플레이 엔티티 대신 패킷 퍼펫으로 그린다
+  (`Puppets.limb(..., PlatformItemTransform)`). 패킷을 못 만들 때만 예전처럼 엔티티로 그린다.
+- `PhysicsWorld`: 물리 스텝 실패 로그가 `[Gazadry]` 이름으로 Bukkit 전역 로거에 찍히던 것을 플러그인 로거로.
+- `Ragdoll.armourPiece`: 갑옷 트림 이름을 없어질 `getKey()` 대신 레지스트리에서 찾고, 등록되지 않은 트림이면 트림 없이 굽는다.
 
 Graywater 흔적으로 `graywater` 네임스페이스의 착용 아이템을 `BetterModel/armors` 의 같은 이름 세트로 굽는 분기가 남아 있다
 (다른 서버에서는 해당 없음).
@@ -87,6 +108,7 @@ Graywater 흔적으로 `graywater` 네임스페이스의 착용 아이템을 `Be
 ## 확인한 것
 
 - 원본 BetterModel 3.5.1 API 로 컴파일된다.
-- DivineMC 26.3-4 + BetterModel 3.5.1 서버에서 부팅: `Jolt 1.0.0 ready`, 명령 처리, 종료까지 오류 없음.
+- DivineMC 26.3-4 + BetterModel 3.5.1 서버(Windows x64)에서 부팅: `Jolt 1.0.0 ready`, 명령 처리, 종료까지 오류 없음.
 - 스킨 조각이 실제로 그려지는 모습은 같은 래그돌 코드로 Graywater 서버에서 시험 클라이언트로 확인했다. 이 데모 플러그인으로
   클라이언트에서 다시 보지는 않았다.
+- 미확인: Windows x64 밖의 네이티브 실제 로드(jar 에 들어간 것만 확인), 패킷으로 바꾼 모자·손 아이템의 모습.

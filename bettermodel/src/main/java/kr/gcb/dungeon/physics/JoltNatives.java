@@ -47,7 +47,8 @@ public final class JoltNatives {
 
         Path dir = plugin.getDataFolder().toPath().resolve("natives");
         Files.createDirectories(dir);
-        Path target = dir.resolve(fileName);
+        // One file per platform: a server folder moved between machines must not load the other one's library.
+        Path target = dir.resolve(resource.substring(0, resource.indexOf("/com/")).replace('/', '-') + "-" + fileName);
 
         try (InputStream in = JoltNatives.class.getClassLoader().getResourceAsStream(resource)) {
             if (in == null) throw new IOException("native missing from jar: " + resource);
@@ -69,14 +70,31 @@ public final class JoltNatives {
         Jolt.registerTypes();
     }
 
+    /**
+     * Where this platform's library sits inside the jar (the layout jolt-jni's own artifacts use).
+     *
+     * <p>Windows and Linux on x86-64 each have a second, faster build ("avx2" / "fma") that only runs
+     * on processors with those instructions. The plain build runs everywhere, so that is the default;
+     * {@code -Dremoteragdoll.jolt.variant=avx2} (Windows) or {@code =fma} (Linux) picks the other.
+     * Taken from the Fabric port (biryeongtrain/RemoteRagdoll-fabric).
+     */
     private static String resourcePath() {
-        String os = System.getProperty("os.name", "").toLowerCase();
-        String arch = System.getProperty("os.arch", "").toLowerCase();
-        if (!arch.equals("amd64") && !arch.equals("x86_64")) {
-            throw new UnsupportedOperationException("unsupported architecture: " + arch);
+        String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+        String arch = System.getProperty("os.arch", "").toLowerCase(java.util.Locale.ROOT);
+        String variant = System.getProperty("remoteragdoll.jolt.variant", "").toLowerCase(java.util.Locale.ROOT);
+        boolean x64 = arch.equals("amd64") || arch.equals("x86_64");
+        boolean arm64 = arch.equals("aarch64") || arch.equals("arm64");
+        boolean arm32 = arch.equals("arm") || arch.startsWith("armv7");
+        if (os.contains("win")) {
+            if (x64) return "windows/x86-64" + (variant.equals("avx2") ? "-avx2" : "") + "/com/github/stephengold/joltjni.dll";
+        } else if (os.contains("mac") || os.contains("darwin")) {
+            if (x64) return "osx/x86-64/com/github/stephengold/libjoltjni.dylib";
+            if (arm64) return "osx/aarch64/com/github/stephengold/libjoltjni.dylib";
+        } else if (os.contains("linux")) {
+            if (x64) return "linux/x86-64" + (variant.equals("fma") ? "-fma" : "") + "/com/github/stephengold/libjoltjni.so";
+            if (arm64) return "linux/aarch64/com/github/stephengold/libjoltjni.so";
+            if (arm32) return "linux/armhf/com/github/stephengold/libjoltjni.so";
         }
-        if (os.contains("win"))   return "windows/x86-64/com/github/stephengold/joltjni.dll";
-        if (os.contains("linux")) return "linux/x86-64/com/github/stephengold/libjoltjni.so";
-        throw new UnsupportedOperationException("unsupported OS: " + os);
+        throw new UnsupportedOperationException("no Jolt native for " + os + " / " + arch);
     }
 }

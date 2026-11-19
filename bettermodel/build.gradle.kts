@@ -11,13 +11,22 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
 }
 
+// Every platform jolt-jni publishes a native for (the same list as the Fabric port).
+// The "_fma" / "_avx2" variants are optional faster builds for the same OS and CPU; see JoltNatives.
+val joltPlatforms = listOf(
+    "Linux64", "Linux64_fma", "Linux_ARM32hf", "Linux_ARM64",
+    "MacOSX64", "MacOSX_ARM64",
+    "Windows64", "Windows64_avx2",
+)
+
 dependencies {
     // Server and BetterModel are provided at runtime; only Jolt goes into the jar.
     compileOnly("io.papermc.paper:paper-api:26.3.build.205-stable")
     compileOnly("io.github.toxicity188:bettermodel-bukkit-api:3.5.1")
+    // The Java classes are the same in every platform artifact, so they are taken once;
+    // each platform's native library (single precision, release) goes into the jar next to them.
     implementation("com.github.stephengold:jolt-jni-Windows64:1.0.0")
-    runtimeOnly("com.github.stephengold:jolt-jni-Windows64:1.0.0:ReleaseSp")
-    runtimeOnly("com.github.stephengold:jolt-jni-Linux64:1.0.0:ReleaseSp")
+    joltPlatforms.forEach { runtimeOnly("com.github.stephengold:jolt-jni-$it:1.0.0:ReleaseSp") }
 }
 
 java {

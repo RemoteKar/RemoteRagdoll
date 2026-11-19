@@ -736,6 +736,14 @@ public final class Ragdoll {
         Location at = head.location();
         if (at == null || at.getWorld() == null) return;
         ItemStack shown = worn.clone();
+        // Packets first, like the limbs it sits on (the Fabric port's way): a packet hat can be
+        // hidden per viewer with the head and is not an entity for the tracker to walk.
+        Puppet hat = Puppets.limb(at, shown, new org.joml.Vector3f(HAT_SCALE),
+                kr.toxicity.model.api.platform.PlatformItemTransform.HEAD);
+        if (hat != null) {
+            head.attach(hat, new Vector(0, 0, 0));
+            return;
+        }
         ItemDisplay display = at.getWorld().spawn(at, ItemDisplay.class, made0 -> {
             made0.setItemStack(shown);
             made0.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.HEAD);
@@ -777,6 +785,16 @@ public final class Ragdoll {
             float yaw = (float) Math.toRadians(plugin.getConfig().getDouble("corpse.hand-yaw", -90));
             float pitch = (float) Math.toRadians(plugin.getConfig().getDouble("corpse.hand-pitch", 0));
             float roll = (float) Math.toRadians(plugin.getConfig().getDouble("corpse.hand-roll", 0));
+            // Packets first. The turn goes in as the rider's tilt, which is drawn as the body's
+            // attitude times the tilt - the same as the display's right rotation below, since
+            // the scale is one.
+            Puppet inHand = Puppets.limb(fist, held, new org.joml.Vector3f(1f),
+                    kr.toxicity.model.api.platform.PlatformItemTransform.THIRDPERSON_RIGHTHAND);
+            if (inHand != null) {
+                arm.attach(inHand, new Vector(0, -drop, 0),
+                        new org.joml.Quaternionf().rotateY(yaw).rotateX(pitch).rotateZ(roll));
+                return;
+            }
             ItemDisplay display = at.getWorld().spawn(fist, ItemDisplay.class, made0 -> {
                 made0.setItemStack(held);
                 made0.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.THIRDPERSON_RIGHTHAND);
@@ -955,8 +973,15 @@ public final class Ragdoll {
         String pattern = null, palette = null;
         if (item.getItemMeta() instanceof org.bukkit.inventory.meta.ArmorMeta worn && worn.hasTrim()) {
             var trim = worn.getTrim();
-            pattern = trim.getPattern().getKey().getKey();
-            palette = trim.getMaterial().getKey().getKey();
+            // Looked up in the registries rather than with getKey(), which is going away and
+            // throws for a trim that is not registered. Without both names there is no trim.
+            var registries = io.papermc.paper.registry.RegistryAccess.registryAccess();
+            var p = registries.getRegistry(io.papermc.paper.registry.RegistryKey.TRIM_PATTERN).getKey(trim.getPattern());
+            var m = registries.getRegistry(io.papermc.paper.registry.RegistryKey.TRIM_MATERIAL).getKey(trim.getMaterial());
+            if (p != null && m != null) {
+                pattern = p.getKey();
+                palette = m.getKey();
+            }
         }
         return new ArmorItem(tint, material, pattern, palette);
     }

@@ -3,6 +3,9 @@
 Minecraft 26.3 (Paper 계열) 서버용 **Jolt 물리 래그돌**. 같은 물리 엔진([jolt-jni](https://github.com/stephengold/jolt-jni) 1.0.0)
 위에서 모델을 그리는 방식이 다른 두 구현이 들어 있다.
 
+> **Fabric 판**: bettermodel 방식을 Fabric 서버 모드로 옮긴 것이
+> [biryeongtrain/RemoteRagdoll-fabric](https://github.com/biryeongtrain/RemoteRagdoll-fabric/tree/codex/fabric-port/fabric) 에 있다.
+
 | | [`modelengine/`](modelengine) | [`bettermodel/`](bettermodel) |
 |---|---|---|
 | 그리는 것 | ModelEngine 모델의 본 → PacketEvents 아이템 디스플레이 | BetterModel 이 플레이어 스킨을 부위별로 자른 조각 → BetterModel 패킷 |
@@ -25,7 +28,8 @@ Minecraft 26.3 (Paper 계열) 서버용 **Jolt 물리 래그돌**. 같은 물리
 
 - Java 25, Minecraft 26.3 (Paper / Purpur / DivineMC)
 - 서버 JVM 옵션 `--enable-native-access=ALL-UNNAMED` (Jolt 네이티브 라이브러리)
-- Windows x64 또는 Linux x64 (두 네이티브가 jar 에 들어 있고 첫 실행 때 `plugins/<플러그인>/natives/` 로 풀린다)
+- 네이티브는 jar 에 들어 있고 첫 실행 때 `plugins/<플러그인>/natives/` 로 풀린다.
+  modelengine 은 Windows x64·Linux x64, bettermodel 은 거기에 macOS(x64·ARM64)와 Linux ARM 까지.
 
 빌드는 각 폴더에서 `./gradlew build` (결과: `build/libs/*.jar`). 자세한 내용은 각 폴더의 README.
 
